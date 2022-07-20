@@ -32,3 +32,4 @@ from . import (
     symmetric_positive_definite,
     base,
 )
+from .diagonalnormal import DiagonalNormal
