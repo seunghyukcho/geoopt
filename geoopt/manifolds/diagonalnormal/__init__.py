@@ -47,10 +47,7 @@ class DiagonalNormal(Manifold):
 
     def egrad2rgrad(self, x: torch.Tensor, u: torch.Tensor) -> torch.Tensor:
         metric_tensor = math.inv_riemannian_metric(x)
-        # print(u.isnan().sum())
         u = u * metric_tensor
-
-        # print(u.isnan().sum(), metric_tensor.isnan().sum())
         return u
 
     def expmap(self, x: torch.Tensor, u: torch.Tensor) -> torch.Tensor:

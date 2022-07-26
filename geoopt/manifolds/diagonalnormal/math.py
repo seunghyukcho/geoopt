@@ -10,14 +10,12 @@ def dist(x0, x1, keepdim):
     stds1 = x1[..., 1]
 
     mu_dist = (mus0 - mus1).pow(2)
-    dist1 = (mu_dist + (stds0 + stds1).pow(2) + 1e-9).sqrt()
-    dist2 = (mu_dist + (stds0 - stds1).pow(2) + 1e-9).sqrt()
-    dist_l = (dist1 + dist2 + 1e-9).log()
-    dist_r = (dist1 - dist2 + 1e-9).log()
-    dist = dist_l - dist_r
+    dist1 = (mu_dist + (stds0 - stds1).pow(2) + 1e-9).log() / 2
+    dist2 = (mu_dist + (stds0 + stds1).pow(2) + 1e-9).log() / 2
+    dist = torch.arctanh((dist1 - dist2).exp() - 1e-9) * 2
+
     dist = dist.pow(2)
-    dist = dist.sum(dim=-1, keepdim=keepdim)
-    dist = dist * 2 + 1e-9
+    dist = dist.sum(dim=-1, keepdim=keepdim) + 1e-9
     dist = dist.sqrt()
 
     return dist  # (*, 1)
@@ -46,24 +44,26 @@ def exp(x, v):
     v_norm = v.pow(2) * metric_tensor
     v_norm = v_norm.sum(dim=-1, keepdim=True)
 
-    r = (v_norm / 2).sqrt()
-
     x0 = x[..., :1]
     x1 = x[..., 1:]
     v0 = v[..., :1]
     v1 = v[..., 1:]
 
-    sign = torch.where(v1 > 0, 1, -1)
-    new_x1[..., :1] = x0
-    new_x1[..., 1:] = x1 * (r * sign).exp()
+    # sign = torch.where((v0 > 0) + (v1 > 0), 1, -1)
+    sign1 = torch.where(v0 > 0, 1, -1)
+    sign2 = torch.where(v1 > 0, 1, -1)
+    r1 = sign1 * (v_norm / 2).sqrt()
+    r2 = sign2 * (v_norm / 2).sqrt()
 
-    p = x0 + 2 * v1 * x1 / v0
+    new_x1[..., :1] = x0
+    new_x1[..., 1:] = x1 * r2.exp()
+
+    p = x0 + 2 * v1 * x1 / (v0 + 1e-9)
     b = ((x0 - p).pow(2) / 2 + x1.pow(2)).sqrt()
 
-    t0 = torch.arctanh((x0 - p) / (sqrt(2) * b)) / r
-    sign = torch.where(v0 > 0, 1, -1)
-    new_x2[..., :1] = p + sqrt(2) * b * torch.tanh(r * (t0 + sign))
-    new_x2[..., 1:] = b / torch.cosh(r * (t0 + sign))
+    t0 = torch.arctanh((x0 - p) / (sqrt(2) * b)) / r1
+    new_x2[..., :1] = p + sqrt(2) * b * torch.tanh(r1 * (t0 + 1))
+    new_x2[..., 1:] = b / torch.cosh(r1 * (t0 + 1))
 
     new_x = torch.where(v0 == 0, new_x1, new_x2)
 
